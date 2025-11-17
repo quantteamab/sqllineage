@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  sqllineage-api:
+    build:
+      context: ..
+      dockerfile: service/Dockerfile
+    container_name: sqllineage-api
+    restart: unless-stopped
+    ports:
+      - "${SERVICE_PORT:-8000}:8000"
+    environment:
+      # Service configuration
+      - SERVICE_NAME=sqllineage-api
+      - SERVICE_VERSION=1.0.0
+      - SERVICE_PORT=${SERVICE_PORT:-8000}
+      - SERVICE_HOST=0.0.0.0
+
+      # Logging configuration
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FILE=/app/logs/sqllineage-api.log
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+
+      # OpenMetadata configuration
+      - OPENMETADATA_URL=${OPENMETADATA_URL:-}
+      - OPENMETADATA_API_KEY=${OPENMETADATA_API_KEY:-}
+      - OPENMETADATA_TIMEOUT=${OPENMETADATA_TIMEOUT:-10}
+      - OPENMETADATA_CACHE_TTL=${OPENMETADATA_CACHE_TTL:-300}
+
+      # Request limits
+      - MAX_REQUEST_SIZE_MB=${MAX_REQUEST_SIZE_MB:-50}
+      - RATE_LIMIT_RPM=${RATE_LIMIT_RPM:-100}
+      - REQUEST_TIMEOUT_SEC=${REQUEST_TIMEOUT_SEC:-30}
+
+      # Default SQL dialect
+      - DEFAULT_DIALECT=${DEFAULT_DIALECT:-ansi}
+
+    volumes:
+      # Mount logs directory for persistence
+      - ./logs:/app/logs
+      # Optional: Mount config file if needed
+      # - ./.env:/app/.env:ro
+
+    networks:
+      - sqllineage-network
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+networks:
+  sqllineage-network:
+    driver: bridge
+
+# Optional: Add OpenMetadata service if running locally
+# Uncomment below if you want to run OpenMetadata alongside the API
+#
+# openmetadata:
+#   image: openmetadata/server:latest
+#   container_name: openmetadata-server
+#   ports:
+#     - "8585:8585"
+#   environment:
+#     - OPENMETADATA_HEAP_OPTS=-Xms1g -Xmx1g
+#   networks:
+#     - sqllineage-network
