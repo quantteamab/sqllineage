@@ -57,6 +57,11 @@ def main(args=None) -> None:
         default=LineageLevel.TABLE,
     )
     parser.add_argument(
+        "--column-pairs",
+        help="output column lineage as pairs in schema.table.column format",
+        action="store_true",
+    )
+    parser.add_argument(
         "-g",
         "--graph-visualization",
         help="show graph visualization of the lineage in a webserver",
@@ -128,6 +133,8 @@ def main(args=None) -> None:
         )
         if args.graph_visualization:
             runner.draw()
+        elif args.column_pairs:
+            runner.print_column_pairs()
         elif args.level == LineageLevel.COLUMN:
             runner.print_column_lineage()
         else:
