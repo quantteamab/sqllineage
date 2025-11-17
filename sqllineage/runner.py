@@ -176,6 +176,56 @@ Target Tables:
         for path in self.get_column_lineage():
             print(" <- ".join(str(col) for col in reversed(path)))
 
+    def print_column_pairs(self) -> None:
+        """
+        print column level lineage as pairs in format: target\t<-\t(source1, source2, ...)
+        with schema.table.column format (or cte.table.column for CTEs)
+        """
+        from collections import defaultdict
+        from sqllineage.core.models import SubQuery, Table
+
+        def format_column(col: Column) -> str:
+            """Format column as schema.table.column or table.column"""
+            parent = col.parent
+            if parent is None:
+                return col.raw_name
+            elif isinstance(parent, Table):
+                # For tables: schema.table.column (skip schema if it's <default>)
+                if parent.schema:
+                    return f"{parent.schema}.{parent.raw_name}.{col.raw_name}"
+                else:
+                    return f"{parent.raw_name}.{col.raw_name}"
+            elif isinstance(parent, SubQuery):
+                # For CTEs/subqueries: use alias as "schema"
+                return f"{parent.alias}.{col.raw_name}"
+            else:
+                # For Path or other types
+                return f"{parent}.{col.raw_name}"
+
+        # Group sources by target
+        # For paths like [original_source, intermediate, target], we want [intermediate, target]
+        # to show the immediate source (which could be a CTE)
+        lineage_map = defaultdict(list)
+        for path in self.get_column_lineage():
+            if len(path) >= 2:
+                # Use the immediate predecessor as source
+                source, target = path[-2], path[-1]
+            else:
+                # Fallback for single-element paths (shouldn't happen)
+                source, target = path[0], path[-1]
+            lineage_map[target].append(source)
+
+        # Print in sorted order by target
+        for target in sorted(lineage_map.keys(), key=lambda x: format_column(x)):
+            sources = lineage_map[target]
+            target_str = format_column(target)
+            if len(sources) == 1:
+                source_str = format_column(sources[0])
+            else:
+                source_strs = ", ".join(format_column(s) for s in sources)
+                source_str = f"({source_strs})"
+            print(f"{target_str}\t<-\t{source_str}")
+
     def print_table_lineage(self) -> None:
         """
         print table level lineage to stdout
